@@ -1,0 +1,28 @@
+---
+import type { Tags } from "@types";
+const { tags } = Astro.props as {
+    tags: Tags;
+};
+const isLink = Astro.props.isLink ?? true;
+---
+
+{
+    tags && (
+        <div class="animate flex flex-wrap gap-2 pt-2">
+            {tags.map((tag: string) => (
+                isLink ? (
+                    <a
+                        href={`/blog/${tag}`}
+                        class="text-sm text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white"
+                    >
+                        #{tag}
+                    </a>
+                ) : (
+                    <span class="text-sm text-gray-500 dark:text-gray-400">
+                        #{tag}
+                    </span>
+                )
+            ))}
+        </div>
+    )
+}
