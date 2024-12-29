@@ -1,0 +1,165 @@
+---
+title: "How I Installed Proxmox on My Old Intel NUC"
+description: "A detailed walkthrough of how I installed Proxmox on my old Intel NUC"
+date: 2024-02-13
+tags: ["proxmox", "homelab", "virtualization"]
+---
+
+## Introduction
+
+Transforming an old Intel NUC into a virtualization powerhouse with Proxmox VE was an exciting challenge. These compact devices are perfect for home labs due to their small size and sufficient performance capabilities. Here's a meticulous account of how I installed Proxmox on my Intel NUC, hoping it can serve as a helpful guide for similar endeavors.
+
+## Preparation
+
+### Gathering the Essentials
+
+Before getting started, I needed to ensure that I had all the necessary components and information:
+
+- **Old Intel NUC:** The model I used had a 64-bit Intel processor with virtualization support (VT-x), 8 GB of RAM, and a 120 GB SSD. This setup is more than adequate for running a few virtual machines.
+- **Bootable USB Drive:** I had a 4 GB USB flash drive ready to create the installation media.
+- **Proxmox VE ISO:** I downloaded the latest Proxmox VE ISO from the [Proxmox download page](https://www.proxmox.com/en/downloads). I made sure to verify the checksum to ensure the integrity of the download.
+- **Internet Connection:** An active internet connection was necessary for downloading updates and managing remote repositories.
+
+### Creating the Installation Media
+
+With the ISO file in hand, my next task was to create a bootable USB drive:
+
+1. **Using Rufus for USB Drive Creation:**
+
+- I downloaded and launched [Rufus](https://rufus.ie/), a reliable tool for creating bootable USB drives.
+- I inserted the USB stick into my computer and selected it in Rufus.
+- I chose the Proxmox VE ISO file using the "Select" button in Rufus.
+- I set the partition scheme to MBR (for BIOS or UEFI compatibility) and the file system to FAT32.
+- After clicking "Start," Rufus formatted the USB drive and copied the Proxmox files, making it ready for installation.
+
+## Booting from the USB Drive
+
+### Setting Up the Intel NUC
+
+With the installation media prepared, it was time to set up the Intel NUC:
+
+1. **Inserting the USB Drive:**
+
+- I carefully inserted the bootable USB drive into one of the front USB ports of the NUC.
+
+2. **Accessing BIOS/UEFI:**
+
+- As the NUC powered up, I pressed the F2 key repeatedly to enter the BIOS setup. The exact key can vary, but this is common for Intel systems.
+
+3. **Configuring the Boot Order:**
+
+- I navigated to the "Boot" tab in the BIOS settings.
+- I changed the boot order to prioritize the USB drive as the first boot device. This ensured that the system would boot from the USB stick first.
+
+4. **Saving Changes and Rebooting:**
+
+- After making the necessary changes, I saved the configuration and exited the BIOS. The NUC rebooted, and the Proxmox installer started from the USB drive.
+
+## Installing Proxmox VE
+
+### Going Through the Installation Steps
+
+With the Proxmox installer running, I proceeded with the installation:
+
+1. **Proxmox Boot Menu:**
+
+- The system displayed the Proxmox VE boot menu. I selected "Install Proxmox VE" and pressed Enter to begin the installation process.
+
+2. **Agreeing to the License:**
+
+- The installer presented the Proxmox VE license agreement. I carefully read through it and accepted the terms to proceed.
+
+3. **Selecting the Target Hard Disk:**
+
+- I was prompted to select the target disk for installation. I chose the NUC's internal SSD, aware that this choice would erase all existing data on the drive.
+
+4. **Filesystem Options:**
+
+- Proxmox VE supports ext4, XFS, BTRFS (as a technology preview), and ZFS filesystems. I opted for ext4 for its stability and wide compatibility.
+- If using ZFS, it's important to note that it should not be used on top of hardware RAID due to potential data loss. The Proxmox wiki provides specific configuration options for ZFS.
+
+5. **Configuring Regional Settings:**
+
+- I set my region, time zone, and keyboard layout. Ensuring these settings were correct was crucial for system localization and timekeeping.
+
+6. **Setting Password and Email:**
+
+- I created a strong password for the root account, which is the main administrative user in Proxmox.
+- I entered my email address for system notifications, ensuring I would receive important alerts and updates.
+
+7. **Network Configuration:**
+
+- The installer prompted me to configure the network settings. I opted for a static IP configuration for consistency and ease of access.
+- I entered the IP address (either IPv4 or IPv6, but not both), subnet mask, gateway, and DNS servers suitable for my home network. Dual stack configuration can be done post-install.
+
+8. **Starting the Installation:**
+
+- With all settings reviewed and confirmed, I clicked "Install." The installer began copying files and setting up the Proxmox environment on the SSD. This process took about 10-15 minutes.
+
+9. **Rebooting into Proxmox:**
+
+- Once installation was complete, I removed the USB drive and allowed the NUC to reboot. This time, it booted into the newly installed Proxmox VE environment.
+
+## Accessing the Proxmox Web Interface
+
+### Final Steps to Get Proxmox Running
+
+With Proxmox installed, I turned to the web interface for management:
+
+1. **Accessing the Web Interface:**
+
+- On my laptop, I opened a web browser and typed in the IP address I assigned earlier using the following format: `https://<assigned_IP>:8006`.
+- The ":8006" is the default port for Proxmox's web interface.
+
+2. **Handling the Security Warning:**
+
+- A security warning appeared due to the self-signed SSL certificate used by Proxmox. I added a security exception to proceed securely.
+
+3. **Logging In:**
+
+- I logged in using the root username and password I set during installation. The interface welcomed me to the Proxmox dashboard.
+
+4. **Post-Install Configuration:**
+
+- I uploaded the subscription key, checked the IP configuration, hostname, timezone, and firewall settings to ensure everything was set up correctly.
+
+5. **Updating Proxmox:**
+
+- My first task was to ensure the system was up-to-date. I navigated to the "Updates" section in the web interface.
+- I clicked "Refresh" to check for available updates and then "Upgrade" to install them, ensuring the system had the latest security patches and features.
+
+6. **Changing to Community Repository (Optional):**
+
+- If you don't have a valid Proxmox subscription, you'll need to change the repository from enterprise to community.
+- You can either manually edit the repository files as shown below, or use the <a href="https://community-scripts.github.io/ProxmoxVE/scripts?id=post-pve-install" target="_blank">Proxmox Helper Scripts</a> which provide an automated solution.
+
+Manual method:
+First, edit the Ceph repository:
+```bash
+nano /etc/apt/sources.list.d/ceph.list
+```
+
+Comment out the enterprise lines:
+```plaintext
+#deb https://enterprise.proxmox.com/debian/ceph-quincy bookworm enterprise
+```
+
+Then, edit the PVE repository:
+```bash
+nano /etc/apt/sources.list.d/pve-enterprise.list
+```
+
+Comment out the enterprise lines:
+```plaintext
+#deb https://enterprise.proxmox.com/debian/pve bookworm pve-enterprise
+```
+
+- After updating the repositories, run `apt update` and `apt upgrade -y` to update the system.
+
+## Conclusion
+
+Transforming my old Intel NUC into a powerful virtualization server with Proxmox VE was an incredibly rewarding experience. Not only did I give new life to a device that might have otherwise collected dust, but I also embarked on a journey of learning and exploration in the world of virtualization.
+
+If you have an old device lying around, I encourage you to consider the possibilities. With a little effort and guidance, you too can unlock its potential and dive into the exciting realm of virtual machines. The satisfaction of creating your own virtualization environment is unmatched, and the opportunities for experimentation and growth are endless.
+
+So, what are you waiting for? Dust off that old hardware, grab a USB drive, and embark on your own Proxmox adventure. Trust me, you won't regret it. Happy virtualizing!
