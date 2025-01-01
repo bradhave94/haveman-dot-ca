@@ -1,6 +1,6 @@
 ---
 title: "No Man's Sky Recipes"
-description: "A collection of recipes for No Man's Sky."
+description: "A comprehensive web-based tool designed to help players navigate the crafting and cooking systems in No Man's Sky."
 date: 2022-02-15
 tags: ["astro", "react", "tailwind"]
 ---
