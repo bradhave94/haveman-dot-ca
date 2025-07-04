@@ -3,7 +3,6 @@ title: "Self-Hosting Standard Notes"
 description: "A detailed walkthrough of how I self-hosted Standard Notes with Docker, Caddy, and Cloudflare"
 date: 2025-06-30
 tags: ["self-hosting", "docker", "caddy", "proxmox"]
-draft: true
 ---
 
 ## Introduction
@@ -27,7 +26,7 @@ Here's my setup:
 
 ## Prerequisites
 
-Before you start, make sure you have:
+You'll need these things before we begin:
 - A Proxmox server (or any server that can run Docker)
 - A domain name managed through Cloudflare
 - pfSense set up with Cloudflare dynamic DNS
@@ -73,40 +72,83 @@ nano .env
 Here are the key changes I made:
 
 ```bash
-# Generate secure keys (run: openssl rand -hex 32)
-AUTH_JWT_SECRET=your_generated_key_here
-ENCRYPTION_SERVER_KEY=your_generated_key_here
-VALET_TOKEN_SECRET=your_generated_key_here
-WEBSOCKETS_API_GATEWAY_KEYS=your_generated_key_here
+######
+# DB #
+######
 
-# Database configuration
-DB_PASSWORD=your_secure_db_password
+DB_HOST=db
+DB_PORT=3306
+DB_USERNAME=your_db_username
+DB_PASSWORD=your_secure_password
+DB_DATABASE=standard_notes_db
+DB_TYPE=mysql
 
-# Important: Set the cookie domain for cross-domain authentication
-COOKIE_DOMAIN=notes-api.domain.com
+#########
+# CACHE #
+#########
 
-# Disable user registration for security
-DISABLE_USER_REGISTRATION=true
+REDIS_PORT=6379
+REDIS_HOST=cache
+CACHE_TYPE=redis
 
-# File server configuration
+########
+# KEYS #
+########
+
+# Generate these with: openssl rand -hex 32
+AUTH_JWT_SECRET=your_generated_jwt_secret
+AUTH_SERVER_ENCRYPTION_SERVER_KEY=your_generated_encryption_key
+VALET_TOKEN_SECRET=your_generated_valet_token
+
+###############
+# API GATEWAY #
+###############
 PUBLIC_FILES_SERVER_URL=https://notes-sync.domain.com
+DISABLE_USER_REGISTRATION=true
+AUTH_SERVER_DISABLE_USER_REGISTRATION=true
+COOKIE_DOMAIN=notes-api.domain.com
 ```
 
 ### Step 4: Update Docker Compose Configuration
 
-Edit the `docker-compose.yml` file to update the database password:
+Edit the `docker-compose.yml` file to update the database passwords:
 
 ```bash
 nano docker-compose.yml
 ```
 
-Update the MySQL environment variables to match your `.env` file:
+Update the MySQL environment variables to match your DB_PASSWORD from the .env file:
 
 ```yaml
-environment:
-  MYSQL_ROOT_PASSWORD: your_secure_db_password
-  MYSQL_PASSWORD: your_secure_db_password
+services:
+  db:
+    environment:
+      MYSQL_ROOT_PASSWORD: your_secure_password  # Same as DB_PASSWORD in .env
+      MYSQL_PASSWORD: your_secure_password       # Same as DB_PASSWORD in .env
 ```
+
+#### Alternative: Using DBeaver for Database Management
+
+If you prefer using a GUI to manage the database, you can expose the MySQL port to your local network. Update the `db` service in your `docker-compose.yml`:
+
+```yaml
+services:
+  db:
+    # ... existing configuration ...
+    ports:
+      - 3306:3306    # Instead of 'expose: [3306]'
+```
+
+Then you can use DBeaver or another MySQL client to connect with these settings:
+- Host: Your server's IP (e.g., 192.168.xx.xxx)
+- Port: 3306
+- Database: standard_notes_db
+- Username: std_notes_user
+- Password: Your DB_PASSWORD from .env
+
+This makes it easier to manage users, subscriptions, and other database operations through a graphical interface.
+
+![DBeaver Connection](/homelab/dbeaber.png)
 
 ### Step 5: Deploy the Backend
 
@@ -116,7 +158,7 @@ Start the backend services:
 docker compose pull && docker compose up -d
 ```
 
-Check the logs to make sure everything started correctly:
+Check the logs to verify everything started correctly:
 
 ```bash
 tail -f logs/*.log
@@ -124,97 +166,110 @@ tail -f logs/*.log
 
 ## Setting Up the Frontend Web App
 
-The frontend is easier to set up. I used the [official web app Docker image](https://standardnotes.com/help/self-hosting/web-app).
+The frontend web app is much simpler to set up. I used the official Standard Notes Docker image from Docker Hub.
 
-### Step 1: Create Web App Directory
+*Note: I did find this community maintained image that customizes the web app, but I am not using it so.. 🤷‍♂️ If you want to use it, you can find it [here](https://github.com/jackyzy823/standardnotes-app-images).*
 
-```bash
-mkdir /opt/standardnotes-web
-cd /opt/standardnotes-web
-```
+### Start the Web App
 
-### Step 2: Create Docker Compose for Web App
-
-Create a `docker-compose.yml` file:
-
-```yaml
-version: '3.8'
-
-services:
-  web:
-    image: standardnotes/web:latest
-    container_name: standardnotes-web
-    ports:
-      - "3003:80"
-    restart: unless-stopped
-```
-
-### Step 3: Deploy the Web App
+Run the following command to start the web app:
 
 ```bash
-docker compose up -d
+docker run -d -p 3003:80 --name standardnotes-web standardnotes/web
 ```
 
-## Configuring Caddy Reverse Proxy
+The web app should now be accessible at `http://your-server-ip:3003`. I chose port 3003 to avoid conflicts with other services, but you can change this to any available port on your machine.
 
-I use Caddy for my reverse proxy because it handles SSL automatically. Here's my Caddyfile configuration:
+## Network and SSL Configuration
+
+For this setup, we need three subdomains with SSL certificates:
+- `notes.domain.com` → Frontend web app
+- `notes-api.domain.com` → Backend API
+- `notes-sync.domain.com` → Files server
+
+I use Caddy as a reverse proxy with automatic SSL certificates, pfSense for routing, and Cloudflare for DNS management. I've documented this infrastructure setup in detail in my [Caddy, pfSense, and Cloudflare Setup Guide](/blog/caddy-pfsense-cloudflare-setup).
+
+### Step 1: Add DNS Records
+
+Follow the Cloudflare DNS setup from the guide above, but create three A records:
+```
+Type    Name       Content
+A       notes      1.1.1.1
+A       notes-api  1.1.1.1
+A       notes-sync 1.1.1.1
+```
+
+### Step 2: Configure Dynamic DNS in pfSense
+
+Create three dynamic DNS entries in pfSense (Services → Dynamic DNS):
+
+1. **Frontend Web App**:
+   - Hostname: notes
+   - Domain: domain.com
+   - Cloudflare Proxy: Enabled
+
+2. **Backend API**:
+   - Hostname: notes-api
+   - Domain: domain.com
+   - Cloudflare Proxy: Enabled
+
+3. **Files Server**:
+   - Hostname: notes-sync
+   - Domain: domain.com
+   - Cloudflare Proxy: Enabled
+
+![Dynamic DNS Entries](/homelab/notes-dns.png)
+
+### Step 3: Caddy Configuration
+
+Add these entries to your Caddyfile:
 
 ```caddyfile
 notes.domain.com {
-	reverse_proxy 192.168.xx.xx:3003
+    reverse_proxy 192.168.xx.xx:3003
 }
 
 notes-api.domain.com {
-	reverse_proxy 192.168.xx.xx:3000
+    reverse_proxy 192.168.xx.xx:3000
 }
 
 notes-sync.domain.com {
-	reverse_proxy 192.168.xx.xx:3125
+    reverse_proxy 192.168.xx.xx:3125
 }
 ```
 
-This setup routes traffic to the correct containers and handles SSL for all three subdomains.
+Replace `192.168.xx.xx` with your server's local IP address.
 
-## Network Configuration
-
-### pfSense Dynamic DNS
-
-I set up pfSense to update my Cloudflare DNS records automatically:
-
-1. **Services** → **Dynamic DNS**
-2. **Add** a new entry with:
-   - Service Type: Cloudflare
-   - Hostname: `*.domain.com` (wildcard)
-   - Domain: `domain.com`
-   - Username: Your Cloudflare email
-   - Password: Your Cloudflare API token
-
-### Firewall Rules
-
-Make sure your pfSense firewall allows:
-- HTTP (80) and HTTPS (443) traffic to your Caddy server
-- Internal traffic from Caddy to your Standard Notes server (ports 3000, 3003, 3125)
+After adding these entries:
+```bash
+sudo caddy fmt --overwrite /etc/caddy/Caddyfile
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
 
 ## Important Configuration Notes
 
-### Security
+1. **Disable User Registration**: I set `DISABLE_USER_REGISTRATION=true` & `AUTH_SERVER_DISABLE_USER_REGISTRATION=true` so only I can create accounts. I don't know if you need both, but it worked for me 🙃
 
-1. **Disable User Registration**: I set `DISABLE_USER_REGISTRATION=true` so only I can create accounts.
+2. **Cookie Domain**: Setting `COOKIE_DOMAIN=notes-api.domain.com` is important for authentication to work correctly. Otherwise, you'll get a infanite login loop.
 
-2. **Cookie Domain**: Setting `COOKIE_DOMAIN=notes-api.domain.com` is important for authentication to work correctly.
+Both of these settings are undocumented, I found them searching the [GitHub repo](https://github.com/search?q=repo%3Astandardnotes%2Fserver%20cookie_domain&type=code)
 
-3. **SSL Everywhere**: Caddy's automatic HTTPS encrypts all traffic.
+3. **Default Sync Server**: Currently there is no way to set the default sync server in the web app. You have to manually set it EVERYTIME you log in or create a new account. You could technically build your own web app and host it instead, but I'm not going to go into that here. You can find the source code [here](https://github.com/standardnotes/app).
+
+![Default Sync Server](/homelab/sync-server.png)
+
 
 ### Creating Your First User
 
-Since registration is disabled, you'll need to create your account manually. You can do this by temporarily enabling registration, creating your account, and then disabling it again.
+Since registration is disabled, you need to create your account manually. You can do this by temporarily enabling registration, creating your account, and then disabling it again.
 
 ## Testing Your Setup
 
 1. **Visit your web app**: Go to `https://notes.domain.com`
 2. **Configure sync server**: In the account menu, go to "Advanced options" and set your custom sync server to `https://notes-api.domain.com`
 3. **Create or log into your account**
-4. **Test file uploads** to make sure the files server is working.
+4. **Test file uploads** to verify the files server is working
 
 ## Maintenance and Updates
 
@@ -230,10 +285,13 @@ docker compose up -d
 ### Updating the Web App
 
 ```bash
-cd /opt/standardnotes-web
-docker compose down
-docker compose pull
-docker compose up -d
+# Stop and remove the old container
+docker stop standardnotes-web
+docker rm standardnotes-web
+
+# Pull the latest image and start a new container
+docker pull standardnotes/web
+docker run -d -p 3003:80 --name standardnotes-web standardnotes/web
 ```
 
 ### Backup Strategy
@@ -242,6 +300,40 @@ Remember to back up your:
 - Database
 - Uploaded files
 - Configuration files
+
+## Subscriptions and Premium Features
+
+### Offline Subscriptions
+
+To get access to all premium features (both client-side and server-side), you need to purchase an offline subscription. This is different from regular subscriptions and is offered at a discount for self-hosters.
+
+To purchase and activate an offline subscription:
+
+1. Go to [standardnotes.com/purchase/offline](https://standardnotes.com/purchase/offline)
+2. Complete the purchase to receive an offline features code via email
+3. Open the Standard Notes web or desktop app
+4. Go to Preferences → General → Offline activation
+5. Paste your code in the "Activate Offline Subscription" section
+
+### Server-Side Subscription
+
+For server-side features only, you can add a subscription to your self-hosted account. Replace `EMAIL@ADDR` with your account email:
+
+```bash
+# Add PRO_USER role
+docker compose exec db sh -c "MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql \$MYSQL_DATABASE -e \
+  'INSERT INTO user_roles (role_uuid , user_uuid) VALUES ((SELECT uuid FROM roles WHERE name=\"PRO_USER\" ORDER BY version DESC limit 1) ,(SELECT uuid FROM users WHERE email=\"EMAIL@ADDR\")) ON DUPLICATE KEY UPDATE role_uuid = VALUES(role_uuid);' \
+"
+
+# Add subscription
+docker compose exec db sh -c "MYSQL_PWD=\$MYSQL_ROOT_PASSWORD mysql \$MYSQL_DATABASE -e \
+  'INSERT INTO user_subscriptions SET uuid=UUID(), plan_name=\"PRO_PLAN\", ends_at=8640000000000000, created_at=0, updated_at=0, user_uuid=(SELECT uuid FROM users WHERE email=\"EMAIL@ADDR\"), subscription_id=1, subscription_type=\"regular\";' \
+"
+```
+
+You could also use the DBeaver GUI to add the subscription.
+
+Note: Server-side subscriptions only enable server features. For client-side features like Super notes and Nested tags, you'll need an offline subscription.
 
 ## Conclusion
 
@@ -259,5 +351,6 @@ Now you can sync your notes across all your devices, knowing they never leave yo
 
 - [Standard Notes Self-hosting Documentation](https://standardnotes.com/help/self-hosting/docker)
 - [Standard Notes Web App Docker Guide](https://standardnotes.com/help/self-hosting/web-app)
+- [Standard Notes GitHub Repo](https://github.com/standardnotes/server)
 - [Caddy Documentation](https://caddyserver.com/docs/)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
