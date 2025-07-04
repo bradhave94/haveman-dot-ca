@@ -127,7 +127,7 @@ services:
       MYSQL_PASSWORD: your_secure_password       # Same as DB_PASSWORD in .env
 ```
 
-#### Alternative: Using DBeaver for Database Management
+**Alternative: Using DBeaver for Database Management**
 
 If you prefer using a GUI to manage the database, you can expose the MySQL port to your local network. Update the `db` service in your `docker-compose.yml`:
 
@@ -169,8 +169,6 @@ tail -f logs/*.log
 The frontend web app is much simpler to set up. I used the official Standard Notes Docker image from Docker Hub.
 
 *Note: I did find this community maintained image that customizes the web app, but I am not using it so.. 🤷‍♂️ If you want to use it, you can find it [here](https://github.com/jackyzy823/standardnotes-app-images).*
-
-### Start the Web App
 
 Run the following command to start the web app:
 
@@ -293,13 +291,6 @@ docker rm standardnotes-web
 docker pull standardnotes/web
 docker run -d -p 3003:80 --name standardnotes-web standardnotes/web
 ```
-
-### Backup Strategy
-
-Remember to back up your:
-- Database
-- Uploaded files
-- Configuration files
 
 ## Subscriptions and Premium Features
 
