@@ -257,6 +257,16 @@ Both of these settings are undocumented, I found them searching the [GitHub repo
 
 ![Default Sync Server](/homelab/sync-server.png)
 
+4. **Official Web App Limitation**: Due to Content Security Policy restrictions, you **cannot** use the official Standard Notes web app (`app.standardnotes.com`) with your self-hosted backend. The web app only allows connections to Standard Notes' own domains. However, the **desktop and mobile apps work perfectly** with self-hosted backends since they don't have browser CSP restrictions. For web access, you **must** use your own self-hosted frontend (`notes.domain.com`).
+
+**What works with self-hosted backends:**
+- ✅ Official desktop apps (Windows, macOS, Linux)
+- ✅ Official mobile apps (iOS, Android)
+- ✅ Your self-hosted web frontend (`notes.domain.com`)
+
+**What doesn't work:**
+- ❌ Official web app (`app.standardnotes.com`) - blocked by browser CSP
+
 
 ### Creating Your First User
 
