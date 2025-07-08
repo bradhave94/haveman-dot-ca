@@ -4,7 +4,7 @@ export const SITE: Site = {
   TITLE: "Bradley Haveman",
   DESCRIPTION: "A collection of thoughts and projects.",
   EMAIL: "hi@haveman.ca",
-  NUM_POSTS_ON_HOMEPAGE: 5,
+  NUM_POSTS_ON_HOMEPAGE: 10,
   NUM_PROJECTS_ON_HOMEPAGE: 3,
   NUM_WORKS_ON_HOMEPAGE: 2,
 };

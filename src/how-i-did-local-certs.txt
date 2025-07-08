@@ -1,0 +1,64 @@
+I used my caddy server. and use the add-package to add the cloudlfare package
+caddy add-package github.com/caddy-dns/cloudflare
+
+
+In cloudflare i set the dns record to mu local ip of my caddy server
+
+A
+breadbox.me
+192.168.11.5
+DNS only - reserved IP
+
+
+CNAME
+*
+breadbox.me
+DNS only
+
+Also create a dns zone IP key
+
+In my pfsense i had to create Host Overrides for each local sub domain to get it to work
+
+Here is my caddyfile. using a wildcard so i can use any subdomain
+*.yourdomain.net {
+	tls {
+		dns cloudflare apikeyapikeyapikeyapikey
+	}
+
+    @vpn host vpn.yourdomain.net
+	handle @vpn {
+		reverse_proxy https://192.168.11.xx.xx:3000 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+
+    @nas host nas.yourdomain.net
+	handle @nas {
+		reverse_proxy https://192.168.11.xx.xx:5001 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+
+	@vm host vm.yourdomain.net proxmox.yourdomain.net
+	handle @vm {
+		reverse_proxy https://192.168.xx.xx:8006 {
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+
+
+
+	handle {
+		respond "Welcome to yourdomain.net local network" 404
+	}
+}
+
+to add a service,
+- add a new record to caddyfile and restart it
+- add a new host override
